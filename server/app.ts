@@ -1,6 +1,6 @@
 import { WebClient } from "@slack/web-api"
 import { createEventAdapter } from "@slack/events-api"
-import { fetchDocumentData, fetchDocumentDataV2, getFileInfo } from "../controller/app_controller"
+import { fetchDocumentData, getFileInfo } from "../controller/app_controller"
 require('dotenv').config()
 
 const slackSigninSecret = `${process.env.SLACK_SIGNING_SECRET}`
@@ -16,7 +16,7 @@ slackEvent.on('message', async (event) => {
     if (event.user === 'U064A5HGUAG') return
 
     try {
-        const response = await fetchDocumentDataV2(event.text)
+        const response = await fetchDocumentData(event.text)
 
         if (response === null) {
             await slackClient.chat.postMessage({

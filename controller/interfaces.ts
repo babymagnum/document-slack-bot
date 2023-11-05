@@ -6,4 +6,5 @@ export interface FileInfo {
 export interface DocumentInfo {
     generatedPdfPath: string
     description: string
+    originPdfPath: string
 }
