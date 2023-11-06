@@ -13,7 +13,7 @@ COPY package*json ./
 
 COPY tsconfig*json ./
 
-RUN npm install --dev typescript && npm install --production
+RUN npm ci
 
 COPY . .
 
