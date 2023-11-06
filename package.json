@@ -7,7 +7,7 @@
     "test": "npm test",
     "start": "ts-node server/app.ts",
     "dev": "ts-node server/app.ts",
-    "build": "tsc --build",
+    "build": "tsc -p",
     "lint": "eslint . --ext .ts"
   },
   "repository": {
