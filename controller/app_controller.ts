@@ -2,15 +2,11 @@ import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 import { PDFLoader } from "langchain/document_loaders/fs/pdf";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import * as fs from "fs";
-import { MultiRetrievalQAChain, loadQAMapReduceChain } from "langchain/chains";
-import { LLMChainExtractor } from "langchain/retrievers/document_compressors/chain_extract";
+import { loadQAMapReduceChain } from "langchain/chains";
 import { ChatOpenAI } from "langchain/chat_models/openai";
 import axios, { AxiosHeaders } from "axios";
 import { DocumentInfo, FileInfo } from "./interfaces";
 import { HumanMessage, SystemMessage } from "langchain/schema";
-import { ParentDocumentRetriever } from "langchain/retrievers/parent_document";
-import { MemoryVectorStore } from "langchain/vectorstores/memory";
-import { InMemoryStore } from "langchain/storage/in_memory";
 import { MultiQueryRetriever } from "langchain/retrievers/multi_query";
 import { FaissStore } from "langchain/vectorstores/faiss";
 
