@@ -14,7 +14,7 @@ COPY package*json ./
 COPY tsconfig*json ./
 
 RUN npm install --production
-RUN npm install typescript
+RUN npm install -g tsc
 
 COPY . .
 
