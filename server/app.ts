@@ -3,10 +3,12 @@ import { createEventAdapter } from "@slack/events-api"
 import { fetchDocumentData, getFileInfo } from "../controller/app_controller"
 require('dotenv').config()
 
+// test
+
 const slackSigninSecret = `${process.env.SLACK_SIGNING_SECRET}`
 const slackToken = `${process.env.SLACK_BOT_TOKEN}`
-const slackPort = 80
-
+const slackPort = 3000
+ 
 const slackEvent = createEventAdapter(slackSigninSecret)
 const slackClient = new WebClient(slackToken)
 
@@ -67,11 +69,6 @@ slackEvent.on('app_mention', async (event) => {
     } catch (error) {
         console.log(error)
     }
-})
-
-slackEvent.on('url_verification', async (event) => {
-    console.log(`url_verification challenge => ${event.challenge}`)
-    console.log(`url_verification token => ${event.token}`)
 })
 
 slackEvent.on('error', console.error)

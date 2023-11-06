@@ -1,0 +1,22 @@
+version: '2'
+services:
+  api:
+    image: registry2023.skyshi.io/document-asker-bot/api-gateway:$CI_COMMIT_SHA
+
+    #working_dir: /src
+    command: sh -c "npm run start:prod"
+    expose:
+      - 3000
+    environment:
+      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET}      
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN}      
+      OPENAI_API_KEY: ${OPENAI_API_KEY}      
+      OPENAI_API_VERSION: ${OPENAI_API_VERSION}      
+      OPENAI_API_MODEL_NAME: ${OPENAI_API_MODEL_NAME}      
+      OPENAI_API_EMBEDDING_NAME: ${OPENAI_API_EMBEDDING_NAME}      
+      OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL}          
+
+    labels:
+      - rap.host=document-asker-bot.project.skyshi.io
+      - rap.le_host=document-asker-bot.project.skyshi.io
+      - rap.port=3000
