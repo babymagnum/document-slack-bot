@@ -5,25 +5,29 @@ import * as fs from "fs";
 import { loadQAMapReduceChain } from "langchain/chains";
 import { ChatOpenAI } from "langchain/chat_models/openai";
 import axios, { AxiosHeaders } from "axios";
-import { DocumentInfo, FileInfo } from "./interfaces";
-import { HumanMessage, SystemMessage } from "langchain/schema";
+import { ConversationResult, DocumentInfo, FileInfo } from "./interfaces";
+import { HumanMessage, SystemMessage, AIMessage } from "langchain/schema";
 import { MultiQueryRetriever } from "langchain/retrievers/multi_query";
 import { FaissStore } from "langchain/vectorstores/faiss";
+import { documentSelectorTemplate } from "./prompts/app_prompts";
+import { BaseLanguageModel, BaseLanguageModelCallOptions } from "langchain/dist/base_language";
 
 require('dotenv').config()
 
 const slackToken = `${process.env.SLACK_BOT_TOKEN}`
 
-const model = new ChatOpenAI({
-    temperature: 0.3,
-    topP: 0.9,
-    maxTokens: -1,
-    verbose: true,
-    azureOpenAIApiKey: process.env.OPENAI_API_KEY,
-    azureOpenAIApiVersion: process.env.OPENAI_API_VERSION,
-    azureOpenAIApiDeploymentName: process.env.OPENAI_API_MODEL_NAME,
-    azureOpenAIBasePath: process.env.OPENAI_API_BASE_URL,
-});
+function model(temperature?: number, top_p?: number): ChatOpenAI {
+    return new ChatOpenAI({
+        temperature: temperature || 0.3,
+        topP: top_p || 0.9,
+        maxTokens: -1,
+        verbose: true,
+        azureOpenAIApiKey: process.env.OPENAI_API_KEY,
+        azureOpenAIApiVersion: process.env.OPENAI_API_VERSION,
+        azureOpenAIApiDeploymentName: process.env.OPENAI_API_MODEL_NAME,
+        azureOpenAIBasePath: process.env.OPENAI_API_BASE_URL,
+    });
+}
 
 const embeddings = new OpenAIEmbeddings({
     azureOpenAIApiKey: process.env.OPENAI_API_KEY,
@@ -31,6 +35,36 @@ const embeddings = new OpenAIEmbeddings({
     azureOpenAIApiDeploymentName: process.env.OPENAI_API_EMBEDDING_NAME,
     azureOpenAIBasePath: process.env.OPENAI_API_BASE_URL,
 });
+
+const basePdf = "./pdf-sources/pdf/";
+const baseGenerated = "./pdf-sources/generated-pdf/";
+
+const documentsInfo: DocumentInfo[] = [
+    {
+        originPdfPath: `${basePdf}Guideline For Assesor.pdf`,
+        generatedPdfPath: `${baseGenerated}Guideline For Assesor`,
+    },
+    {
+        originPdfPath: `${basePdf}Intern Employee Guidelines.pdf`,
+        generatedPdfPath: `${baseGenerated}Intern Employee Guidelines`,
+    },
+    {
+        originPdfPath: `${basePdf}Skyshi - Project Management Guideline.pdf`,
+        generatedPdfPath: `${baseGenerated}Skyshi - Project Management Guideline`,
+    },
+    {
+        originPdfPath: `${basePdf}Skyshi Guideline Engineer Progression.pdf`,
+        generatedPdfPath: `${baseGenerated}Skyshi Guideline Engineer Progression`,
+    },
+    {
+        originPdfPath: `${basePdf}Udemy Acces Guideline.pdf`,
+        generatedPdfPath: `${baseGenerated}Udemy Acces Guideline`,
+    },
+    {
+        originPdfPath: `${basePdf}Probation Employee Guideline.pdf`,
+        generatedPdfPath: `${baseGenerated}Probation Employee Guideline`,
+    }
+]
 
 export async function getFileInfo(fileId: string): Promise<FileInfo> {
     axios.AxiosHeaders
@@ -49,184 +83,34 @@ export async function getFileInfo(fileId: string): Promise<FileInfo> {
     } as FileInfo
 }
 
-async function checkDocumentContainsQuestion(question: string, documentDescription: string): Promise<boolean> {
+async function checkDocumentContainsQuestion(question: string): Promise<ConversationResult> {
     try {
-        const result = await model.call([
-            new SystemMessage(`
-            You're helpful assistant that will help me to check wheter the provided data contains answer from the user question or no
-    
-            Task:
-            You will be provided with the data that may contains answer from the user question, your output only true or false
-    
-            Example Output:
-            true
-            `),
-            new HumanMessage(`
-            Data:
-            ${documentDescription}
-    
-            Question:
-            ${question}
-            `),
+        const result = await model(0.3, 0.7).call([
+            new SystemMessage(documentSelectorTemplate),
+            new HumanMessage('selamat pagi'),
+            new AIMessage(`"<>";"<>";"<Selamat pagi! Ada yang bisa saya bantu? Jika Anda memiliki pertanyaan tentang kebijakan perusahaan atau pedoman karyawan, jangan ragu untuk bertanya!>"`),
+            new HumanMessage('bagaimana tata cara untuk mengajukan izin sakit?'),
+            new AIMessage(`"Probation Employee Guideline";"Pedoman Izin Sakit";"Untuk mengajukan izin sakit, Anda dapat merujuk ke bagian 'Pedoman Izin Sakit' dalam dokumen 'Probation Employee Guideline'."`),
+            new HumanMessage(question)
         ]);
 
-        return result.content.includes('true') ? true : false
+        const document = result.content.split(';')[0].replace(/[""<>]/g, "")
+        const keyword = result.content.split(';')[1].replace(/[""<>]/g, "")
+        const answer = result.content.split(';')[2].replace(/[""<>]/g, "")
+        return {
+            document: document,
+            keyword: keyword,
+            answer: answer
+        }
     } catch (error) {
-        return false
+        return {
+            answer: `${error}`
+        }
     }
 }
 
 export async function fetchDocumentData(question: string): Promise<string | null> {
     try {
-        const basePdf = "./pdf-sources/pdf/";
-        const baseGenerated = "./pdf-sources/generated-pdf/";
-
-        const documentsInfo: DocumentInfo[] = [
-            {
-                originPdfPath: `${basePdf}Guideline For Assesor.pdf`,
-                generatedPdfPath: `${baseGenerated}Guideline For Assesor`,
-                description: `
-                Gunakan dokumen ini untuk menjawab segala pertanyaan yang berkaitan dengan Guideline For Assesor
-        
-                Dokumen ini terdiri dari beberapa subkonten, berikut adalah daftar subkonten dan data pendukung di dalam nya:
-        
-                1. Melakukan review dari hasil bukti bukti aspek skill yang dikumpulkan
-                2. 1 on 1 Interview dengan engineer
-                3. Melakukan penilaian terhadap hasil review dan 1on1
-                4. Pengambilan keputusan
-                `
-            },
-            {
-                originPdfPath: `${basePdf}Intern Employee Guidelines.pdf`,
-                generatedPdfPath: `${baseGenerated}Intern Employee Guidelines`,
-                description: `
-                Gunakan dokumen ini untuk menjawab segala pertanyaan yang berkaitan dengan Intern Employee Guideline
-        
-                Dokumen ini terdiri dari beberapa subkonten, berikut adalah daftar nya:
-        
-                1. Intern Employee Guideline:
-                    - Pedoman Umum
-                    - Hari kerja, jam kerja, dan lembur
-                    - Pedoman etika kerja
-                    - Pedoman izin sakit
-                    - Pedoman pembuatan artikel medium skyshi
-                    - Pedoman meeting online
-                    - Tata cara presentasi
-        
-                2. Onboarding Task Probation
-                    - Menjelaskan project/klien retain yang akan di assign
-                    - Menjelaskan dokumen terkait
-                    - Etika komunikasi dengan tim dan klien dalam project
-                    - Penjelasan teknis oleh Lead Project
-                
-                3. Fundamental Skills
-                    - Mindset seorang engineer di skyshi
-                    - Contoh dokumen bisnis proses
-                    - Pedoman tools
-                    - Pedoman deployment
-                    - Pedoman project management
-                `
-            },
-            {
-                originPdfPath: `${basePdf}Skyshi - Project Management Guideline.pdf`,
-                generatedPdfPath: `${baseGenerated}Skyshi - Project Management Guideline`,
-                description: `
-                Gunakan dokumen ini untuk menjawab segala pertanyaan yang berkaitan dengan Skyshi - Project Management Guideline
-        
-                Dokumen ini terdiri dari beberapa subkonten, berikut adalah daftar nya:
-        
-                1. Software Lifecycle:
-                    - Project lifecycle
-        
-                2. Longterm lifecycle: Project + product
-        
-                3. Project Management Guideline:
-                    - Pedoman pelaksanaan project
-                        * Tahap requirement gathering
-                        * Tahap inisiasi
-                        * Tahap development
-                        * Tahap deployment
-                    - Pedoman request improvement dan bug di live site
-                    - Pedoman request improvement di ongoing project
-                `
-            },
-            {
-                originPdfPath: `${basePdf}Skyshi Guideline Engineer Progression.pdf`,
-                generatedPdfPath: `${baseGenerated}Skyshi Guideline Engineer Progression`,
-                description: `
-                Gunakan dokumen ini untuk menjawab segala pertanyaan yang berkaitan dengan Skyshi Guideline Engineer Progression
-        
-                Dokumen ini terdiri dari beberapa subkonten, berikut adalah daftar nya:
-        
-                1. Assesment
-                    - Pengumpulan bukti untuk assesment
-                    - Jenis Jenis Bukti yang dikumpulkan Dan Proses pengumpulan bukti
-                    - Proses Assessment
-                    - Skill Apa yang harus dibuktikan
-                    - Proses Promosi ke Level Selanjutnya
-        
-                2. LEVEL DEVELOPER
-        
-                3. SKILLS
-                    - COMMUNICATION
-                    - DOCUMENTATION            
-                    - PLANNING, DELIVERY & ESTIMATION            
-                    - DEBUGGING & TECHNICAL PROBLEM SOLVING
-                    - LANGUAGE KNOWLEDGE                
-                        * Frontend (React)
-                        * Frontend (Vue)
-                        * Mobile (React native)
-                        * Mobile (Flutter)
-                        * Backend (Node.js)
-                        * Backend (Golang)            
-                    - TECHNICAL QUALITY            
-                    - TOOLING        
-                    - PERFORMANCE            
-                    - FRONT END & MOBILE FOCUSED                
-                    - BACKEND TECHNICAL FOCUSED
-                `
-            },
-            {
-                originPdfPath: `${basePdf}Udemy Acces Guideline.pdf`,
-                generatedPdfPath: `${baseGenerated}Udemy Acces Guideline`,
-                description: "Gunakan dokumen ini untuk menjawab segala pertanyaan yang berkaitan tentang Udemy Access Guideline"
-            },
-            {
-                originPdfPath: `${basePdf}Probation Employee Guideline.pdf`,
-                generatedPdfPath: `${baseGenerated}Probation Employee Guideline`,
-                description: `
-                Gunakan dokumen ini untuk menjawab segala pertanyaan yang berkaitan dengan Probation Employee Guideline
-        
-                Dokumen ini terdiri dari beberapa subkonten, berikut adalah daftar nya:
-        
-                1. Probation Employee Guideline:
-                    - Project lifecycle
-                    - Pedoman Umum
-                    - Hari Kerja, Jam Kerja, dan Lembur
-                    - Pedoman Etika Kerja
-                    - Pedoman Kontrak Probation
-                    - Kontrak karyawan probation berisi Nama Lengkap, Tempat/tanggal lahir, Alamat dan periode probation terhitung dari hari pertama masuk hingga tiga bulan mendatang
-                    - Pedoman Pembuatan Email Baru dan Akses Internet
-                    - Pengupahan Karyawan
-                    - Pedoman Pendaftaran BPJS Kesehatan dan Ketenagakerjaan
-                    - Pedoman Penggunaan Kartu BPJS Kesehatan
-                    - Pedoman Pengajuan Izin/Cuti
-                    - Pedoman Izin Sakit
-                    - Pedoman Pembuatan Artikel Medium Skyshi
-                    - Pedoman Penggunaan Google Hangout dan Google Meet
-                    - Google Meet
-                    - Tata Cara Presentasi
-        
-                2. Fundamental Skills
-                    - Mindset Seorang Engineer di Skyshi
-                    - Karakter Aplikasi yang Dibangun Skyshi
-                    - Pedoman Tools
-                    - Pedoman Development
-                    - Pedoman Project Management
-                `
-            }
-        ]
-
         // check if all pdf is saved locally
         for (const value of documentsInfo) {
             if (!fs.existsSync(value.generatedPdfPath)) {
@@ -252,37 +136,26 @@ export async function fetchDocumentData(question: string): Promise<string | null
             }
         }
 
-        let selectedDocumentInfo: DocumentInfo | null = null
+        let selectedDocumentInfo: ConversationResult = await checkDocumentContainsQuestion(question)
 
-        // search for document that may contains answer
-        for (const document of documentsInfo) {
-            const containsAnswer = await checkDocumentContainsQuestion(question, document.description)
+        if (selectedDocumentInfo.document === null) return null
 
-            if (containsAnswer) {
-                selectedDocumentInfo = document
-                break
-            }
-        }
+        if (selectedDocumentInfo.document === '') return selectedDocumentInfo.answer
 
-        if (selectedDocumentInfo === null) return null
+        console.log(`selectedDocumentInfo ==> ${selectedDocumentInfo.document}`)
 
-        console.log(`selectedDocumentInfo ==> ${selectedDocumentInfo.generatedPdfPath}`)
+        const vectorStore = await FaissStore.load(`${baseGenerated}${selectedDocumentInfo.document!}`, embeddings)
 
-        // continue for selected document
-        const vectorStore = await FaissStore.load(selectedDocumentInfo.generatedPdfPath, embeddings)
+        const relevantDocuments = await vectorStore.similaritySearch(selectedDocumentInfo.keyword || question)
 
-        const retriever = MultiQueryRetriever.fromLLM({
-            llm: model,
-            retriever: vectorStore.asRetriever(),
-        });
-
-        const similarityDocuments = await retriever.getRelevantDocuments(question)
-
-        const chain = loadQAMapReduceChain(model)
+        const chain = loadQAMapReduceChain(model(0.3, 0.7))
 
         const res = await chain.call({
-            input_documents: similarityDocuments,
-            question: question
+            input_documents: relevantDocuments,
+            question: `
+            Tolong tampilkan data yang berhubungan dengan keyword berikut ini:
+            ${selectedDocumentInfo.keyword || ''}
+            `
         });
 
         return res.text

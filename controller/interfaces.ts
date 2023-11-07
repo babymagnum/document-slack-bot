@@ -5,6 +5,11 @@ export interface FileInfo {
 
 export interface DocumentInfo {
     generatedPdfPath: string
-    description: string
     originPdfPath: string
+}
+
+export interface ConversationResult {
+    document?: string
+    keyword?: string
+    answer: string
 }

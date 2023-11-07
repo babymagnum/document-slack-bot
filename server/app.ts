@@ -3,8 +3,6 @@ import { createEventAdapter } from "@slack/events-api"
 import { fetchDocumentData, getFileInfo } from "../controller/app_controller"
 require('dotenv').config()
 
-// test
-
 const slackSigninSecret = `${process.env.SLACK_SIGNING_SECRET}`
 const slackToken = `${process.env.SLACK_BOT_TOKEN}`
 const slackPort = 3000
