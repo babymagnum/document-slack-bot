@@ -13,3 +13,10 @@ export interface ConversationResult {
     keyword?: string
     answer: string
 }
+
+export interface LastResponse {
+    document?: string
+    keyword?: string
+    answer: string
+    lastQuestion: string
+}

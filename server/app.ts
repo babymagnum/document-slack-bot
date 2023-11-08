@@ -1,6 +1,7 @@
 import { WebClient } from "@slack/web-api"
 import { createEventAdapter } from "@slack/events-api"
 import { fetchDocumentData, getFileInfo } from "../controller/app_controller"
+import { LastResponse } from "../controller/interfaces"
 require('dotenv').config()
 
 const slackSigninSecret = `${process.env.SLACK_SIGNING_SECRET}`
@@ -10,13 +11,21 @@ const slackPort = 3000
 const slackEvent = createEventAdapter(slackSigninSecret)
 const slackClient = new WebClient(slackToken)
 
-slackEvent.on('message', async (event) => {
-    console.log(`message in ${event.channel} ==> ${event.user} ${event.text}`)
+let lastResponse: LastResponse|undefined = undefined
 
+slackEvent.on('message', async (event) => {
+    if (!event.user || !event.text) return
     if (event.user === 'U064A5HGUAG') return
 
+    console.log(`message in ${event.channel} ==> ${event.user} ${event.text}`)
+
     try {
-        const response = await fetchDocumentData(event.text)
+        const waitingMessage = await slackClient.chat.postMessage({
+            channel: event.channel,
+            text: 'Please wait, we are preparing your answer... :pray:'
+        })
+
+        const response = await fetchDocumentData(event.text, lastResponse)
 
         if (response === null) {
             await slackClient.chat.postMessage({
@@ -26,9 +35,21 @@ slackEvent.on('message', async (event) => {
             return
         }
 
+        lastResponse = {
+            lastQuestion: event.text,
+            document: response.document,
+            keyword: response.keyword,
+            answer: response.answer
+        }
+
+        await slackClient.chat.delete({
+            channel: event.channel,
+            ts: waitingMessage.ts || ''
+        })
+
         await slackClient.chat.postMessage({
             channel: event.channel,
-            text: response
+            text: response.answer
         })
     } catch (error) {
         await slackClient.chat.postMessage({

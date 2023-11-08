@@ -5,7 +5,7 @@ import * as fs from "fs";
 import { loadQAMapReduceChain } from "langchain/chains";
 import { ChatOpenAI } from "langchain/chat_models/openai";
 import axios, { AxiosHeaders } from "axios";
-import { ConversationResult, DocumentInfo, FileInfo } from "./interfaces";
+import { ConversationResult, DocumentInfo, FileInfo, LastResponse } from "./interfaces";
 import { HumanMessage, SystemMessage, AIMessage } from "langchain/schema";
 import { MultiQueryRetriever } from "langchain/retrievers/multi_query";
 import { FaissStore } from "langchain/vectorstores/faiss";
@@ -83,14 +83,20 @@ export async function getFileInfo(fileId: string): Promise<FileInfo> {
     } as FileInfo
 }
 
-async function checkDocumentContainsQuestion(question: string): Promise<ConversationResult> {
+async function checkDocumentContainsQuestion(question: string, lastResponse?: LastResponse): Promise<ConversationResult> {
     try {
+        const lastResponseArray: (HumanMessage | AIMessage)[] = []
+
+        if (lastResponse !== undefined) {
+            lastResponseArray.push(new HumanMessage(lastResponse.lastQuestion))
+            lastResponseArray.push(new AIMessage(`"<${lastResponse.document || ''}>";"<${lastResponse.keyword || ''}>";"<${lastResponse.answer}>"`))
+        }
+
         const result = await model(0.3, 0.7).call([
             new SystemMessage(documentSelectorTemplate),
             new HumanMessage('selamat pagi'),
             new AIMessage(`"<>";"<>";"<Selamat pagi! Ada yang bisa saya bantu? Jika Anda memiliki pertanyaan tentang kebijakan perusahaan atau pedoman karyawan, jangan ragu untuk bertanya!>"`),
-            new HumanMessage('bagaimana tata cara untuk mengajukan izin sakit?'),
-            new AIMessage(`"Probation Employee Guideline";"Pedoman Izin Sakit";"Untuk mengajukan izin sakit, Anda dapat merujuk ke bagian 'Pedoman Izin Sakit' dalam dokumen 'Probation Employee Guideline'."`),
+            ...lastResponseArray,
             new HumanMessage(question)
         ]);
 
@@ -109,47 +115,49 @@ async function checkDocumentContainsQuestion(question: string): Promise<Conversa
     }
 }
 
-export async function fetchDocumentData(question: string): Promise<string | null> {
-    try {
-        // check if all pdf is saved locally
-        for (const value of documentsInfo) {
-            if (!fs.existsSync(value.generatedPdfPath)) {
-                console.log(`directory ${value} not exist`);
+export async function fetchDocumentData(question: string, lastResponse?: LastResponse): Promise<ConversationResult | null> {
+    // check if all pdf is saved locally
+    for (const value of documentsInfo) {
+        if (!fs.existsSync(value.generatedPdfPath)) {
+            console.log(`directory ${value} not exist`);
 
-                const fileName = value.generatedPdfPath.split('/').pop() || '';
+            const fileName = value.generatedPdfPath.split('/').pop() || '';
 
-                if (fileName === "") { continue; }
+            if (fileName === "") { continue; }
 
-                const loader = new PDFLoader(`${basePdf}${fileName}.pdf`, { splitPages: false });
+            const loader = new PDFLoader(`${basePdf}${fileName}.pdf`, { splitPages: false });
 
-                // load and split the file to chunk/documents
-                const docs = await loader.loadAndSplit(new RecursiveCharacterTextSplitter({
-                    chunkSize: 1000,
-                    chunkOverlap: 1000 / 5,
-                }));
+            // load and split the file to chunk/documents
+            const docs = await loader.loadAndSplit(new RecursiveCharacterTextSplitter({
+                chunkSize: 1000,
+                chunkOverlap: 1000 / 5,
+            }));
 
-                const vectorStore = await FaissStore.fromDocuments(docs, embeddings);
+            const vectorStore = await FaissStore.fromDocuments(docs, embeddings);
 
-                await vectorStore.save(value.generatedPdfPath);
-            } else {
-                console.log(`directory ${value} is exist`);
-            }
+            await vectorStore.save(value.generatedPdfPath);
+        } else {
+            console.log(`directory ${value} is exist`);
         }
+    }
 
-        let selectedDocumentInfo: ConversationResult = await checkDocumentContainsQuestion(question)
+    let selectedDocumentInfo: ConversationResult = await checkDocumentContainsQuestion(question, lastResponse)
 
-        if (selectedDocumentInfo.document === null) return null
+    if (selectedDocumentInfo.document === null) return { answer: selectedDocumentInfo.answer }
 
-        if (selectedDocumentInfo.document === '') return selectedDocumentInfo.answer
+    const isDocumentSuggestedFromOpenAINotFound = documentsInfo.filter((element) => element.generatedPdfPath === `${baseGenerated}${selectedDocumentInfo.document}`).length === 0
 
-        console.log(`selectedDocumentInfo ==> ${selectedDocumentInfo.document}`)
+    if (selectedDocumentInfo.document === '' || isDocumentSuggestedFromOpenAINotFound) return { answer: selectedDocumentInfo.answer }
 
-        const vectorStore = await FaissStore.load(`${baseGenerated}${selectedDocumentInfo.document!}`, embeddings)
+    console.log(`selectedDocumentInfo ==> ${selectedDocumentInfo.document}`)
 
-        const relevantDocuments = await vectorStore.similaritySearch(selectedDocumentInfo.keyword || question)
+    const vectorStore = await FaissStore.load(`${baseGenerated}${selectedDocumentInfo.document!}`, embeddings)
 
-        const chain = loadQAMapReduceChain(model(0.3, 0.7))
+    const relevantDocuments = await vectorStore.similaritySearch(selectedDocumentInfo.keyword || question)
 
+    const chain = loadQAMapReduceChain(model(0.2, 0.85))
+
+    try {
         const res = await chain.call({
             input_documents: relevantDocuments,
             question: `
@@ -157,11 +165,20 @@ export async function fetchDocumentData(question: string): Promise<string | null
             ${selectedDocumentInfo.keyword || ''}
             `
         });
+    
+        const isContentFilterHappen: boolean = `${res.generationInfo.finish_reason}` === 'content_filter'
 
-        return res.text
+        return {
+            answer: `
+            ${isContentFilterHappen && 'Mohon maaf, system kami mendeteksi adanya pelanggaran pada Content Filtering, yang menyebabkan saya tidak bisa mengeluarkan jawaban lengkap atas pertanyaan anda :pray:\n\nBerikut ini adalah jawaban singkat yang bisa saya tampilkan\n\n'}
+            ${selectedDocumentInfo.answer.trim()}
+    
+            ${`${res.text}`.trim()}
+            `,
+            document: selectedDocumentInfo.document,
+            keyword: selectedDocumentInfo.keyword
+        }
     } catch (error) {
-        console.log(error)
-
-        return null
+        return { answer: `Mohon maaf, system kami mendeteksi adanya pelanggaran pada Content Filtering, yang menyebabkan kami tidak bisa mengeluarkan jawaban lengkap atas pertanyaan anda :pray:\n\nBerikut ini adalah jawaban singkat yang bisa saya tampilkan\n\n${selectedDocumentInfo.answer}` }
     }
 }
