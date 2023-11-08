@@ -100,9 +100,14 @@ async function checkDocumentContainsQuestion(question: string, lastResponse?: La
             new HumanMessage(question)
         ]);
 
+        if (!result.content.includes(';')) {
+            return { answer: result.content }
+        }
+
         const document = result.content.split(';')[0].replace(/[""<>]/g, "")
         const keyword = result.content.split(';')[1].replace(/[""<>]/g, "")
         const answer = result.content.split(';')[2].replace(/[""<>]/g, "")
+
         return {
             document: document,
             keyword: keyword,
@@ -165,13 +170,10 @@ export async function fetchDocumentData(question: string, lastResponse?: LastRes
             ${selectedDocumentInfo.keyword || ''}
             `
         });
-    
-        const isContentFilterHappen: boolean = `${res.generationInfo.finish_reason}` === 'content_filter'
 
         return {
             answer: `
-            ${isContentFilterHappen && 'Mohon maaf, system kami mendeteksi adanya pelanggaran pada Content Filtering, yang menyebabkan saya tidak bisa mengeluarkan jawaban lengkap atas pertanyaan anda :pray:\n\nBerikut ini adalah jawaban singkat yang bisa saya tampilkan\n\n'}
-            ${selectedDocumentInfo.answer.trim()}
+            ${res.text === '' ? `Mohon maaf, system kami mendeteksi adanya pelanggaran pada Content Filtering, yang menyebabkan saya tidak bisa mengeluarkan jawaban lengkap atas pertanyaan anda :pray:\n\nBerikut ini adalah jawaban singkat yang bisa saya tampilkan\n\n${selectedDocumentInfo.answer}` : ''}            
     
             ${`${res.text}`.trim()}
             `,
@@ -179,6 +181,6 @@ export async function fetchDocumentData(question: string, lastResponse?: LastRes
             keyword: selectedDocumentInfo.keyword
         }
     } catch (error) {
-        return { answer: `Mohon maaf, system kami mendeteksi adanya pelanggaran pada Content Filtering, yang menyebabkan kami tidak bisa mengeluarkan jawaban lengkap atas pertanyaan anda :pray:\n\nBerikut ini adalah jawaban singkat yang bisa saya tampilkan\n\n${selectedDocumentInfo.answer}` }
+        return { answer: `Mohon maaf, terjadi kesalahan ketika memproses pertanyaan Anda, yang menyebabkan saya tidak bisa mengeluarkan jawaban lengkap atas pertanyaan Anda :pray:\n\nBerikut ini adalah jawaban singkat yang bisa saya tampilkan\n\n${selectedDocumentInfo.answer}` }
     }
 }

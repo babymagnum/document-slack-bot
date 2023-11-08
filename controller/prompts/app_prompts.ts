@@ -113,5 +113,5 @@ Context:
 Output anda harus dalam bentuk CSV seperti pada contoh di bawah ini.
 
 Output:
-"<Nama dokumen: dokumen yang anda rekomendasikan untuk menjawab pertanyaan user. Kosongkan bagian ini jika tidak tau>";"<Keyword: keyword yang terdapat pada dokumen untuk menjawab pertanyaan dari user. Kosongkan bagian ini jika tidak tau>";"<Balasan: balasan untuk menanggapi percakapan dengan user>"
+"<Nama dokumen: dokumen yang anda rekomendasikan untuk menjawab pertanyaan user. Kosongkan bagian ini jika tidak tau>";"<Keyword: keyword yang terdapat pada dokumen untuk menjawab pertanyaan dari user. Kosongkan bagian ini jika tidak tau>";"<Balasan: balaslah pertanyaan atau perintah dari user dengan baik dan ramah>"
 `
