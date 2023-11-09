@@ -82,7 +82,7 @@ export async function getFileInfo(fileId: string): Promise<FileInfo> {
         url_download: res.data.file.url_private
     } as FileInfo
 }
-
+ 
 async function checkDocumentContainsQuestion(question: string, lastResponse?: LastResponse): Promise<ConversationResult> {
     try {
         const lastResponseArray: (HumanMessage | AIMessage)[] = []
