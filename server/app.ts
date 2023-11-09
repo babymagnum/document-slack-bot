@@ -20,10 +20,10 @@ slackEvent.on('message', async (event) => {
     console.log(`message in ${event.channel} ==> ${event.user} ${event.text}`)
 
     try {
-        const waitingMessage = await slackClient.chat.postMessage({
-            channel: event.channel,
-            text: 'Please wait, we are preparing your answer... :pray:'
-        })
+        // const waitingMessage = await slackClient.chat.postMessage({
+        //     channel: event.channel,
+        //     text: 'Please wait, we are preparing your answer... :pray:'
+        // })
 
         const response = await fetchDocumentData(event.text, lastResponse)
 
@@ -42,10 +42,10 @@ slackEvent.on('message', async (event) => {
             answer: response.answer
         }
 
-        await slackClient.chat.delete({
-            channel: event.channel,
-            ts: waitingMessage.ts || ''
-        })
+        // await slackClient.chat.delete({
+        //     channel: event.channel,
+        //     ts: waitingMessage.ts || ''
+        // })
 
         await slackClient.chat.postMessage({
             channel: event.channel,

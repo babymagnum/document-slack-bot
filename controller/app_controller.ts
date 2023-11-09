@@ -9,7 +9,7 @@ import { ConversationResult, DocumentInfo, FileInfo, LastResponse } from "./inte
 import { HumanMessage, SystemMessage, AIMessage } from "langchain/schema";
 import { MultiQueryRetriever } from "langchain/retrievers/multi_query";
 import { FaissStore } from "langchain/vectorstores/faiss";
-import { documentSelectorTemplate } from "./prompts/app_prompts";
+import { documentSelectorTemplate, finalResponsePrompt } from "./prompts/app_prompts";
 import { BaseLanguageModel, BaseLanguageModelCallOptions } from "langchain/dist/base_language";
 
 require('dotenv').config()
@@ -120,6 +120,22 @@ async function checkDocumentContainsQuestion(question: string, lastResponse?: La
     }
 }
 
+async function getFinalResponse(answer: string, keyword: string, question: string, data: string): Promise<string|null> {
+    try {
+        const result = await model(0.3, 0.7).call([
+            new SystemMessage(finalResponsePrompt(keyword, question)),
+            new HumanMessage(`
+            Data:
+            ${data}
+            `),
+        ]);
+
+        return result.content
+    } catch (error) {
+        return `Mohon maaf, terjadi kesalahan ketika memproses pertanyaan Anda, yang menyebabkan saya tidak bisa mengeluarkan jawaban lengkap atas pertanyaan Anda :pray:\n\nBerikut ini adalah jawaban singkat yang bisa saya tampilkan\n\n${answer}`
+    }
+}
+
 export async function fetchDocumentData(question: string, lastResponse?: LastResponse): Promise<ConversationResult | null> {
     // check if all pdf is saved locally
     for (const value of documentsInfo) {
@@ -160,27 +176,16 @@ export async function fetchDocumentData(question: string, lastResponse?: LastRes
 
     const relevantDocuments = await vectorStore.similaritySearch(selectedDocumentInfo.keyword || question)
 
-    const chain = loadQAMapReduceChain(model(0.2, 0.85))
+    const finalResponse = await getFinalResponse(selectedDocumentInfo.answer, selectedDocumentInfo.keyword || '',
+     question, relevantDocuments.map((element) => element.pageContent).toString())
 
-    try {
-        const res = await chain.call({
-            input_documents: relevantDocuments,
-            question: `
-            Tolong tampilkan data yang berhubungan dengan keyword berikut ini:
-            ${selectedDocumentInfo.keyword || ''}
-            `
-        });
+     return {
+        answer: `
+        ${finalResponse === '' ? `Mohon maaf, system kami mendeteksi adanya pelanggaran pada Content Filtering, yang menyebabkan saya tidak bisa mengeluarkan jawaban lengkap atas pertanyaan anda :pray:\n\nBerikut ini adalah jawaban singkat yang bisa saya tampilkan\n\n${selectedDocumentInfo.answer}` : ''}            
 
-        return {
-            answer: `
-            ${res.text === '' ? `Mohon maaf, system kami mendeteksi adanya pelanggaran pada Content Filtering, yang menyebabkan saya tidak bisa mengeluarkan jawaban lengkap atas pertanyaan anda :pray:\n\nBerikut ini adalah jawaban singkat yang bisa saya tampilkan\n\n${selectedDocumentInfo.answer}` : ''}            
-    
-            ${`${res.text}`.trim()}
-            `,
-            document: selectedDocumentInfo.document,
-            keyword: selectedDocumentInfo.keyword
-        }
-    } catch (error) {
-        return { answer: `Mohon maaf, terjadi kesalahan ketika memproses pertanyaan Anda, yang menyebabkan saya tidak bisa mengeluarkan jawaban lengkap atas pertanyaan Anda :pray:\n\nBerikut ini adalah jawaban singkat yang bisa saya tampilkan\n\n${selectedDocumentInfo.answer}` }
+        ${finalResponse}
+        `,
+        document: selectedDocumentInfo.document,
+        keyword: selectedDocumentInfo.keyword
     }
 }

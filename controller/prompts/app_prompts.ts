@@ -11,7 +11,7 @@ CSV form:
 "<Document name>";"<Document content>"
 
 Context:
-"< Guideline For Assesor >";"<
+"<Guideline For Assesor>";"<
 1. Melakukan review dari hasil bukti bukti aspek skill yang dikumpulkan
 2. 1 on 1 Interview dengan engineer
 3. Melakukan penilaian terhadap hasil review dan 1on1
@@ -115,3 +115,17 @@ Output anda harus dalam bentuk CSV seperti pada contoh di bawah ini.
 Output:
 "<Nama dokumen: dokumen yang anda rekomendasikan untuk menjawab pertanyaan user. Kosongkan bagian ini jika tidak tau>";"<Keyword: keyword yang terdapat pada dokumen untuk menjawab pertanyaan dari user. Kosongkan bagian ini jika tidak tau>";"<Balasan: balaslah pertanyaan atau perintah dari user dengan baik dan ramah>"
 `
+
+export function finalResponsePrompt(keyword: string, question: string): string {
+  return `
+Anda adalah seorang asisten yang akan membantu saya dalam menemukan informasi dari data yang akan diberikan oleh user. Data yang akan diberikan berupa text.
+
+Tugas Anda adalah menemukan informasi dari data tersebut, berdasarkan perintah yang ditulis.
+
+Perintah:
+Tampilkan data yang berhubungan dengan ${keyword} dan sesuaikan jawaban Anda berdasarkan pertanyaan atau perintah dari user. Pada akhir jawaban anda, selalu tanyakan kepada user, apakah sudah sesuai dengan kebutuhan user atau belum, gunakan kata-kata yang ramah ketika menanyakan kebutuhan user.
+
+Pertanyaan User:
+${question}
+`
+}
