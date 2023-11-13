@@ -120,14 +120,19 @@ async function checkDocumentContainsQuestion(question: string, lastResponse?: La
     }
 }
 
-async function getFinalResponse(answer: string, keyword: string, question: string, data: string): Promise<string|null> {
+async function getFinalResponse(answer: string, keyword: string, question: string, data: string, lastResponse?: LastResponse): Promise<string|null> {
     try {
+        const lastResponseArray: (HumanMessage | AIMessage)[] = []
+
+        if (lastResponse !== undefined) {
+            lastResponseArray.push(new HumanMessage(lastResponse.lastQuestion))
+            lastResponseArray.push(new AIMessage(lastResponse.answer))
+        }
+
         const result = await model(0.3, 0.7).call([
-            new SystemMessage(finalResponsePrompt(keyword, question)),
-            new HumanMessage(`
-            Data:
-            ${data}
-            `),
+            new SystemMessage(finalResponsePrompt(keyword, data)),
+            ...lastResponseArray,
+            new HumanMessage(question),
         ]);
 
         return result.content
@@ -177,7 +182,7 @@ export async function fetchDocumentData(question: string, lastResponse?: LastRes
     const relevantDocuments = await vectorStore.similaritySearch(selectedDocumentInfo.keyword || question)
 
     const finalResponse = await getFinalResponse(selectedDocumentInfo.answer, selectedDocumentInfo.keyword || '',
-     question, relevantDocuments.map((element) => element.pageContent).toString())
+     question, relevantDocuments.map((element) => element.pageContent).toString(), lastResponse)
 
      return {
         answer: `

@@ -116,16 +116,15 @@ Output:
 "<Nama dokumen: dokumen yang anda rekomendasikan untuk menjawab pertanyaan user. Kosongkan bagian ini jika tidak tau>";"<Keyword: keyword yang terdapat pada dokumen untuk menjawab pertanyaan dari user. Kosongkan bagian ini jika tidak tau>";"<Balasan: balaslah pertanyaan atau perintah dari user dengan baik dan ramah>"
 `
 
-export function finalResponsePrompt(keyword: string, question: string): string {
+export function finalResponsePrompt(keyword: string, data: string): string {
   return `
-Anda adalah seorang asisten yang akan membantu saya dalam menemukan informasi dari data yang akan diberikan oleh user. Data yang akan diberikan berupa text.
-
-Tugas Anda adalah menemukan informasi dari data tersebut, berdasarkan perintah yang ditulis.
+Anda adalah seorang asisten yang akan akan menjawab semua pertanyaan dari user. Anda bisa menjawab pertanyaan dari user menggunakan data yang sudah disediakan.
 
 Perintah:
-Tampilkan data yang berhubungan dengan ${keyword} dan sesuaikan jawaban Anda berdasarkan pertanyaan atau perintah dari user. Pada akhir jawaban anda, selalu tanyakan kepada user, apakah sudah sesuai dengan kebutuhan user atau belum, gunakan kata-kata yang ramah ketika menanyakan kebutuhan user.
+1. Carilah data yang berhubungan dengan keyword ${keyword}, setelah itu jawablah pertanyaan atau perintah dari user. 
+2. Pada akhir jawaban, tanyakan kembali kepada user, apakah sudah sesuai dengan kebutuhan atau belum, gunakan kata-kata yang ramah ketika menanyakan kebutuhan user.
 
-Pertanyaan User:
-${question}
+Data:
+${data}
 `
 }
